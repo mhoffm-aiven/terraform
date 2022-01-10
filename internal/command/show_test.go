@@ -23,12 +23,10 @@ import (
 )
 
 func TestShow(t *testing.T) {
-	ui := new(cli.MockUi)
-	view, _ := testView(t)
+	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(testProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
@@ -36,9 +34,14 @@ func TestShow(t *testing.T) {
 	args := []string{
 		"bad",
 		"bad",
+		"-no-color",
 	}
-	if code := c.Run(args); code != 1 {
-		t.Fatalf("bad: \n%s", ui.OutputWriter.String())
+
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 1 {
+		t.Fatalf("expected error output, got:\n%s", output.Stdout())
 	}
 }
 
@@ -49,22 +52,24 @@ func TestShow_noArgs(t *testing.T) {
 	// Create the default state
 	testStateFileDefault(t, testState())
 
-	ui := new(cli.MockUi)
-	view, _ := testView(t)
+	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(testProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
-	if code := c.Run([]string{}); code != 0 {
-		t.Fatalf("bad: \n%s", ui.OutputWriter.String())
+	code := c.Run([]string{})
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad exit code: \n%s", output.Stderr())
 	}
 
-	if !strings.Contains(ui.OutputWriter.String(), "# test_instance.foo:") {
-		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	got, want := output.Stdout(), "# test_instance.foo:"
+	if !strings.Contains(got, want) {
+		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
 	}
 }
 
@@ -95,24 +100,28 @@ func TestShow_aliasedProvider(t *testing.T) {
 	defer os.RemoveAll(stateDir)
 	defer testChdir(t, stateDir)()
 
-	ui := new(cli.MockUi)
-	view, _ := testView(t)
+	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(testProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
 	// the statefile created by testStateFile is named state.tfstate
-	args := []string{"state.tfstate"}
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad exit code: \n%s", ui.OutputWriter.String())
+	args := []string{
+		"state.tfstate",
+		"-no-color",
+	}
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad exit code: \n%s", output.Stderr())
 	}
 
-	if strings.Contains(ui.OutputWriter.String(), "# missing schema for provider \"test.alias\"") {
-		t.Fatalf("bad output: \n%s", ui.OutputWriter.String())
+	if strings.Contains(output.Stdout(), "# missing schema for provider \"test.alias\"") {
+		t.Fatalf("bad output: \n%s", output.Stdout())
 	}
 }
 
@@ -123,75 +132,80 @@ func TestShow_noArgsNoState(t *testing.T) {
 	defer os.RemoveAll(stateDir)
 	defer testChdir(t, stateDir)()
 
-	ui := new(cli.MockUi)
-	view, _ := testView(t)
+	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(testProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
 	// the statefile created by testStateFile is named state.tfstate
-	args := []string{"state.tfstate"}
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad: \n%s", ui.OutputWriter.String())
+	args := []string{
+		"state.tfstate",
+		"-no-color",
+	}
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad exit code: \n%s", output.Stderr())
 	}
 }
 
 func TestShow_planNoop(t *testing.T) {
 	planPath := testPlanFileNoop(t)
 
-	ui := cli.NewMockUi()
 	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(testProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
 	args := []string{
 		planPath,
+		"-no-color",
 	}
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad exit code: \n%s", output.Stderr())
 	}
 
-	want := `No changes. Your infrastructure matches the configuration.`
-	got := done(t).Stdout()
+	got, want := output.Stdout(), `No changes. Your infrastructure matches the configuration.`
 	if !strings.Contains(got, want) {
-		t.Errorf("missing expected output\nwant: %s\ngot:\n%s", want, got)
+		t.Errorf("unexpected output\ngot: %s\nwant:\n%s", got, want)
 	}
 }
 
 func TestShow_planWithChanges(t *testing.T) {
 	planPathWithChanges := showFixturePlanFile(t, plans.DeleteThenCreate)
 
-	ui := cli.NewMockUi()
 	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(showFixtureProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
 	args := []string{
 		planPathWithChanges,
+		"-no-color",
+	}
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad exit code: \n%s", output.Stderr())
 	}
 
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
-	}
-
-	want := `test_instance.foo must be replaced`
-	got := done(t).Stdout()
+	got, want := output.Stdout(), `test_instance.foo must be replaced`
 	if !strings.Contains(got, want) {
-		t.Errorf("missing expected output\nwant: %s\ngot:\n%s", want, got)
+		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
 	}
 }
 
@@ -239,30 +253,33 @@ func TestShow_planWithForceReplaceChange(t *testing.T) {
 		plan,
 	)
 
-	ui := cli.NewMockUi()
 	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(showFixtureProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
 	args := []string{
 		planFilePath,
+		"-no-color",
+	}
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad: \n%s", output.Stderr())
 	}
 
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	got, want := output.Stdout(), `test_instance.foo will be replaced, as requested`
+	if !strings.Contains(got, want) {
+		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
 	}
 
-	got := done(t).Stdout()
-	if want := `test_instance.foo will be replaced, as requested`; !strings.Contains(got, want) {
-		t.Errorf("wrong output\ngot:\n%s\n\nwant substring: %s", got, want)
-	}
-	if want := `Plan: 1 to add, 0 to change, 1 to destroy.`; !strings.Contains(got, want) {
-		t.Errorf("wrong output\ngot:\n%s\n\nwant substring: %s", got, want)
+	want = `Plan: 1 to add, 0 to change, 1 to destroy.`
+	if !strings.Contains(got, want) {
+		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
 	}
 
 }
@@ -270,12 +287,10 @@ func TestShow_planWithForceReplaceChange(t *testing.T) {
 func TestShow_plan_json(t *testing.T) {
 	planPath := showFixturePlanFile(t, plans.Create)
 
-	ui := new(cli.MockUi)
-	view, _ := testView(t)
+	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(showFixtureProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
@@ -283,9 +298,13 @@ func TestShow_plan_json(t *testing.T) {
 	args := []string{
 		"-json",
 		planPath,
+		"-no-color",
 	}
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad exit code: \n%s", output.Stderr())
 	}
 }
 
@@ -294,21 +313,23 @@ func TestShow_state(t *testing.T) {
 	statePath := testStateFile(t, originalState)
 	defer os.RemoveAll(filepath.Dir(statePath))
 
-	ui := new(cli.MockUi)
-	view, _ := testView(t)
+	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(testProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
 	args := []string{
 		statePath,
+		"-no-color",
 	}
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("bad exit code: \n%s", output.Stderr())
 	}
 }
 
@@ -340,7 +361,7 @@ func TestShow_json_output(t *testing.T) {
 
 			p := showFixtureProvider()
 			ui := new(cli.MockUi)
-			view, _ := testView(t)
+			view, done := testView(t)
 			m := Meta{
 				testingOverrides: metaOverridesForProvider(p),
 				Ui:               ui,
@@ -383,15 +404,17 @@ func TestShow_json_output(t *testing.T) {
 				"terraform.plan",
 			}
 			defer os.Remove("terraform.plan")
+			code := sc.Run(args)
+			output := done(t)
 
-			if code := sc.Run(args); code != 0 {
-				t.Fatalf("wrong exit status %d; want 0\nstderr: %s", code, ui.ErrorWriter.String())
+			if code != 0 {
+				t.Fatalf("wrong exit status %d; want 0\nstderr: %s", code, output.Stderr())
 			}
 
-			// compare ui output to wanted output
+			// compare view output to wanted output
 			var got, want plan
 
-			gotString := ui.OutputWriter.String()
+			gotString := output.Stdout()
 			json.Unmarshal([]byte(gotString), &got)
 
 			wantFile, err := os.Open("output.json")
