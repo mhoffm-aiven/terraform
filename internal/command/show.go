@@ -181,9 +181,9 @@ func (c *ShowCommand) Synopsis() string {
 	return "Show the current state or a saved plan"
 }
 
-// getPlanFromPath returns a plan, statefile, and config if the user-supplied path points
-// to a planfile. If both plan and error are nil, the path is likely a
-// directory. An error could suggest that the given path points to a statefile.
+// getPlanFromPath returns a plan, statefile, and config if the user-supplied
+// path points to a planfile. If both plan and error are nil, the path is likely
+// a directory. An error could suggest that the given path points to a statefile.
 func getPlanFromPath(path string) (*plans.Plan, *statefile.File, *configs.Config, error) {
 	planReader, err := planfile.Open(path)
 	if err != nil {
@@ -213,14 +213,14 @@ func getPlanFromPath(path string) (*plans.Plan, *statefile.File, *configs.Config
 
 // getStateFromPath returns a statefile if the user-supplied path points to a statefile.
 func getStateFromPath(path string) (*statefile.File, error) {
-	f, err := os.Open(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("Error loading statefile: %s", err)
 	}
-	defer f.Close()
+	defer file.Close()
 
 	var stateFile *statefile.File
-	stateFile, err = statefile.Read(f)
+	stateFile, err = statefile.Read(file)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading %s as a statefile: %s", path, err)
 	}
