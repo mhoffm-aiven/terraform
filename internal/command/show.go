@@ -55,15 +55,6 @@ func (c *ShowCommand) Run(args []string) int {
 
 	var diags tfdiags.Diagnostics
 
-	// Load the backend
-	b, backendDiags := c.Backend(nil)
-	diags = diags.Append(backendDiags)
-	if backendDiags.HasErrors() {
-		c.showDiagnostics(diags)
-		return 1
-	}
-	c.ignoreRemoteVersionConflict(b)
-
 	var planErr, stateErr error
 	var plan *plans.Plan
 	var stateFile *statefile.File
@@ -89,6 +80,15 @@ func (c *ShowCommand) Run(args []string) int {
 			}
 		}
 	} else {
+		// Load the backend
+		b, backendDiags := c.Backend(nil)
+		diags = diags.Append(backendDiags)
+		if backendDiags.HasErrors() {
+			c.showDiagnostics(diags)
+			return 1
+		}
+		c.ignoreRemoteVersionConflict(b)
+
 		workspace, err := c.Workspace()
 		if err != nil {
 			c.Ui.Error(fmt.Sprintf("Error selecting workspace: %s", err))
@@ -101,25 +101,26 @@ func (c *ShowCommand) Run(args []string) int {
 		}
 	}
 
+	opts, err := c.contextOpts()
+	if err != nil {
+		diags = diags.Append(err)
+		c.showDiagnostics(diags)
+		return 1
+	}
+	tfCtx, ctxDiags := terraform.NewContext(opts)
+	diags = diags.Append(ctxDiags)
+	if ctxDiags.HasErrors() {
+		c.showDiagnostics(diags)
+		return 1
+	}
+	schemas, schemaDiags := tfCtx.Schemas(config, stateFile.State)
+	diags = diags.Append(schemaDiags)
+	if schemaDiags.HasErrors() {
+		c.showDiagnostics(diags)
+		return 1
+	}
+
 	if plan != nil {
-		opts, err := c.contextOpts()
-		if err != nil {
-			diags = diags.Append(err)
-			c.showDiagnostics(diags)
-			return 1
-		}
-		tfCtx, ctxDiags := terraform.NewContext(opts)
-		diags = diags.Append(ctxDiags)
-		if ctxDiags.HasErrors() {
-			c.showDiagnostics(diags)
-			return 1
-		}
-		schemas, schemaDiags := tfCtx.Schemas(config, stateFile.State)
-		diags = diags.Append(schemaDiags)
-		if schemaDiags.HasErrors() {
-			c.showDiagnostics(diags)
-			return 1
-		}
 		if jsonOutput {
 			jsonPlan, err := jsonplan.Marshal(config, plan, stateFile, schemas)
 
