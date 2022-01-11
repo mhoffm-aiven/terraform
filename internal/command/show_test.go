@@ -41,7 +41,7 @@ func TestShow(t *testing.T) {
 	output := done(t)
 
 	if code != 1 {
-		t.Fatalf("expected error output, got:\n%s", output.Stdout())
+		t.Fatalf("unexpected exit status %d; want 1\ngot: %s", code, output.Stdout())
 	}
 }
 
@@ -64,12 +64,13 @@ func TestShow_noArgs(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad exit code: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 
-	got, want := output.Stdout(), "# test_instance.foo:"
+	got := output.Stdout()
+	want := `# test_instance.foo:`
 	if !strings.Contains(got, want) {
-		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
+		t.Fatalf("unexpected output\ngot: %s\nwant: %s", got, want)
 	}
 }
 
@@ -117,11 +118,13 @@ func TestShow_aliasedProvider(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad exit code: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 
-	if strings.Contains(output.Stdout(), "# missing schema for provider \"test.alias\"") {
-		t.Fatalf("bad output: \n%s", output.Stdout())
+	got := output.Stdout()
+	want := `# missing schema for provider \"test.alias\"`
+	if strings.Contains(got, want) {
+		t.Fatalf("unexpected output\ngot: %s", got)
 	}
 }
 
@@ -149,7 +152,7 @@ func TestShow_noArgsNoState(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad exit code: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 }
 
@@ -172,10 +175,11 @@ func TestShow_planNoop(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad exit code: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 
-	got, want := output.Stdout(), `No changes. Your infrastructure matches the configuration.`
+	got := output.Stdout()
+	want := `No changes. Your infrastructure matches the configuration.`
 	if !strings.Contains(got, want) {
 		t.Errorf("unexpected output\ngot: %s\nwant:\n%s", got, want)
 	}
@@ -200,12 +204,13 @@ func TestShow_planWithChanges(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad exit code: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 
-	got, want := output.Stdout(), `test_instance.foo must be replaced`
+	got := output.Stdout()
+	want := `test_instance.foo must be replaced`
 	if !strings.Contains(got, want) {
-		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
+		t.Fatalf("unexpected output\ngot: %s\nwant: %s", got, want)
 	}
 }
 
@@ -269,17 +274,18 @@ func TestShow_planWithForceReplaceChange(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 
-	got, want := output.Stdout(), `test_instance.foo will be replaced, as requested`
+	got := output.Stdout()
+	want := `test_instance.foo will be replaced, as requested`
 	if !strings.Contains(got, want) {
-		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
+		t.Fatalf("unexpected output\ngot: %s\nwant: %s", got, want)
 	}
 
 	want = `Plan: 1 to add, 0 to change, 1 to destroy.`
 	if !strings.Contains(got, want) {
-		t.Fatalf("unexpected output:\ngot: %s\nwant: %s", got, want)
+		t.Fatalf("unexpected output\ngot: %s\nwant: %s", got, want)
 	}
 
 }
@@ -304,7 +310,7 @@ func TestShow_plan_json(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad exit code: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 }
 
@@ -329,7 +335,7 @@ func TestShow_state(t *testing.T) {
 	output := done(t)
 
 	if code != 0 {
-		t.Fatalf("bad exit code: \n%s", output.Stderr())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 }
 
@@ -390,7 +396,7 @@ func TestShow_json_output(t *testing.T) {
 			}
 
 			if code := pc.Run(args); code != 0 {
-				t.Fatalf("wrong exit status %d; want 0\nstderr: %s", code, ui.ErrorWriter.String())
+				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
 			}
 
 			// flush the plan output from the mock ui
@@ -408,7 +414,7 @@ func TestShow_json_output(t *testing.T) {
 			output := done(t)
 
 			if code != 0 {
-				t.Fatalf("wrong exit status %d; want 0\nstderr: %s", code, output.Stderr())
+				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 			}
 
 			// compare view output to wanted output
@@ -419,12 +425,12 @@ func TestShow_json_output(t *testing.T) {
 
 			wantFile, err := os.Open("output.json")
 			if err != nil {
-				t.Fatalf("err: %s", err)
+				t.Fatalf("unexpected err: %s", err)
 			}
 			defer wantFile.Close()
 			byteValue, err := ioutil.ReadAll(wantFile)
 			if err != nil {
-				t.Fatalf("err: %s", err)
+				t.Fatalf("unexpected err: %s", err)
 			}
 			json.Unmarshal([]byte(byteValue), &want)
 
@@ -476,7 +482,7 @@ func TestShow_json_output_sensitive(t *testing.T) {
 
 	if code := pc.Run(args); code != 0 {
 		fmt.Println(ui.OutputWriter.String())
-		t.Fatalf("wrong exit status %d; want 0\nstderr: %s", code, ui.ErrorWriter.String())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
 	}
 
 	// flush the plan output from the mock ui
@@ -492,7 +498,7 @@ func TestShow_json_output_sensitive(t *testing.T) {
 	defer os.Remove("terraform.plan")
 
 	if code := sc.Run(args); code != 0 {
-		t.Fatalf("wrong exit status %d; want 0\nstderr: %s", code, ui.ErrorWriter.String())
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
 	}
 
 	// compare ui output to wanted output
@@ -503,12 +509,12 @@ func TestShow_json_output_sensitive(t *testing.T) {
 
 	wantFile, err := os.Open("output.json")
 	if err != nil {
-		t.Fatalf("err: %s", err)
+		t.Fatalf("unexpected err: %s", err)
 	}
 	defer wantFile.Close()
 	byteValue, err := ioutil.ReadAll(wantFile)
 	if err != nil {
-		t.Fatalf("err: %s", err)
+		t.Fatalf("unexpected err: %s", err)
 	}
 	json.Unmarshal([]byte(byteValue), &want)
 
@@ -567,7 +573,7 @@ func TestShow_json_output_state(t *testing.T) {
 			}
 
 			if code := sc.Run([]string{"-json"}); code != 0 {
-				t.Fatalf("wrong exit status %d; want 0\nstderr: %s", code, ui.ErrorWriter.String())
+				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
 			}
 
 			// compare ui output to wanted output
@@ -584,12 +590,12 @@ func TestShow_json_output_state(t *testing.T) {
 
 			wantFile, err := os.Open("output.json")
 			if err != nil {
-				t.Fatalf("err: %s", err)
+				t.Fatalf("unexpected error: %s", err)
 			}
 			defer wantFile.Close()
 			byteValue, err := ioutil.ReadAll(wantFile)
 			if err != nil {
-				t.Fatalf("err: %s", err)
+				t.Fatalf("unexpected err: %s", err)
 			}
 			json.Unmarshal([]byte(byteValue), &want)
 
@@ -622,27 +628,29 @@ func TestShow_planWithNonDefaultStateLineage(t *testing.T) {
 	}
 	planPath := testPlanFileMatchState(t, snap, state, plan, stateMeta)
 
-	ui := cli.NewMockUi()
 	view, done := testView(t)
 	c := &ShowCommand{
 		Meta: Meta{
 			testingOverrides: metaOverridesForProvider(testProvider()),
-			Ui:               ui,
 			View:             view,
 		},
 	}
 
 	args := []string{
 		planPath,
+		"-no-color",
 	}
-	if code := c.Run(args); code != 0 {
-		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	code := c.Run(args)
+	output := done(t)
+
+	if code != 0 {
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
 	}
 
+	got := output.Stdout()
 	want := `No changes. Your infrastructure matches the configuration.`
-	got := done(t).Stdout()
 	if !strings.Contains(got, want) {
-		t.Errorf("missing expected output\nwant: %s\ngot:\n%s", want, got)
+		t.Fatalf("unexpected output\ngot: %s\nwant: %s", got, want)
 	}
 }
 
