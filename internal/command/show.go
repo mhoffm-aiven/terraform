@@ -7,9 +7,6 @@ import (
 
 	"github.com/hashicorp/terraform/internal/backend"
 	"github.com/hashicorp/terraform/internal/command/arguments"
-	//"github.com/hashicorp/terraform/internal/command/format"
-	//"github.com/hashicorp/terraform/internal/command/jsonplan"
-	//"github.com/hashicorp/terraform/internal/command/jsonstate"
 	"github.com/hashicorp/terraform/internal/command/views"
 	"github.com/hashicorp/terraform/internal/configs"
 	"github.com/hashicorp/terraform/internal/plans"
@@ -50,18 +47,15 @@ func (c *ShowCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	plan, stateFile, _, schemas, showDiags := c.show(args.Path)
+	// Get the data we need to display
+	plan, stateFile, config, schemas, showDiags := c.show(args.Path)
 	if showDiags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
 	}
 
-	if plan != nil {
-		view.Plan(plan, schemas)
-	} else {
-		view.State(stateFile, schemas)
-	}
-	return 0
+	// Display the data
+	return view.Display(config, plan, stateFile, schemas)
 }
 
 func (c *ShowCommand) Help() string {
@@ -93,7 +87,7 @@ func (c *ShowCommand) show(path string) (*plans.Plan, *statefile.File, *configs.
 	var schemas *terraform.Schemas
 
 	// No plan file or state file argument provided,
-	// default to displaying the latest state snapshot
+	// so get the latest state snapshot
 	if path == "" {
 		stateFile, showDiags = c.showFromLatestStateSnapshot()
 		diags = diags.Append(showDiags)
@@ -102,9 +96,9 @@ func (c *ShowCommand) show(path string) (*plans.Plan, *statefile.File, *configs.
 		}
 	}
 
-	// Plan file or state file provided
-	// Try to load plan file first, if that
-	// fails, try to load it as a state file.
+	// Plan file or state file argument provided,
+	// so try to load the argument as a plan file first.
+	// If that fails, try to load it as a statefile.
 	if path != "" {
 		plan, stateFile, config, showDiags = c.showFromPath(path)
 		diags = diags.Append(showDiags)
@@ -113,7 +107,7 @@ func (c *ShowCommand) show(path string) (*plans.Plan, *statefile.File, *configs.
 		}
 	}
 
-	// Get schemas
+	// Get schemas, if possible
 	if config != nil || stateFile != nil {
 		opts, err := c.contextOpts()
 		if err != nil {
@@ -146,11 +140,14 @@ func (c *ShowCommand) showFromLatestStateSnapshot() (*statefile.File, tfdiags.Di
 	}
 	c.ignoreRemoteVersionConflict(b)
 
+	// Load the workspace
 	workspace, err := c.Workspace()
 	if err != nil {
 		diags.Append(fmt.Sprintf("Error selecting workspace: %s", err))
 		return nil, diags
 	}
+
+	// Get the latest state snapshot from the backend for the current workspace
 	stateFile, stateErr := getStateFromBackend(b, workspace)
 	if stateErr != nil {
 		diags.Append(stateErr.Error())
@@ -167,6 +164,9 @@ func (c *ShowCommand) showFromPath(path string) (*plans.Plan, *statefile.File, *
 	var stateFile *statefile.File
 	var config *configs.Config
 
+	// Try to get the plan file and associated data from
+	// the path argument. If that fails, try to get the
+	// statefile from the path argument.
 	plan, stateFile, config, planErr = getPlanFromPath(path)
 	if planErr != nil {
 		stateFile, stateErr = getStateFromPath(path)
@@ -185,7 +185,7 @@ func (c *ShowCommand) showFromPath(path string) (*plans.Plan, *statefile.File, *
 }
 
 // getPlanFromPath returns a plan, statefile, and config if the user-supplied
-// path points to a planfile. If both plan and error are nil, the path is likely
+// path points to a plan file. If both plan and error are nil, the path is likely
 // a directory. An error could suggest that the given path points to a statefile.
 func getPlanFromPath(path string) (*plans.Plan, *statefile.File, *configs.Config, error) {
 	planReader, err := planfile.Open(path)

@@ -2,7 +2,6 @@ package command
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -366,18 +365,15 @@ func TestShow_json_output(t *testing.T) {
 			defer close()
 
 			p := showFixtureProvider()
-			ui := new(cli.MockUi)
-			view, done := testView(t)
-			m := Meta{
-				testingOverrides: metaOverridesForProvider(p),
-				Ui:               ui,
-				View:             view,
-				ProviderSource:   providerSource,
-			}
 
 			// init
+			ui := new(cli.MockUi)
 			ic := &InitCommand{
-				Meta: m,
+				Meta: Meta{
+					testingOverrides: metaOverridesForProvider(p),
+					Ui:               ui,
+					ProviderSource:   providerSource,
+				},
 			}
 			if code := ic.Run([]string{}); code != 0 {
 				if expectError {
@@ -387,22 +383,35 @@ func TestShow_json_output(t *testing.T) {
 				t.Fatalf("init failed\n%s", ui.ErrorWriter)
 			}
 
+			// plan
+			planView, planDone := testView(t)
 			pc := &PlanCommand{
-				Meta: m,
+				Meta: Meta{
+					testingOverrides: metaOverridesForProvider(p),
+					View:             planView,
+					ProviderSource:   providerSource,
+				},
 			}
 
 			args := []string{
 				"-out=terraform.plan",
 			}
 
-			if code := pc.Run(args); code != 0 {
-				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
+			code := pc.Run(args)
+			planOutput := planDone(t)
+
+			if code != 0 {
+				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, planOutput.Stderr())
 			}
 
-			// flush the plan output from the mock ui
-			ui.OutputWriter.Reset()
+			// show
+			showView, showDone := testView(t)
 			sc := &ShowCommand{
-				Meta: m,
+				Meta: Meta{
+					testingOverrides: metaOverridesForProvider(p),
+					View:             showView,
+					ProviderSource:   providerSource,
+				},
 			}
 
 			args = []string{
@@ -410,17 +419,17 @@ func TestShow_json_output(t *testing.T) {
 				"terraform.plan",
 			}
 			defer os.Remove("terraform.plan")
-			code := sc.Run(args)
-			output := done(t)
+			code = sc.Run(args)
+			showOutput := showDone(t)
 
 			if code != 0 {
-				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, output.Stderr())
+				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, showOutput.Stderr())
 			}
 
 			// compare view output to wanted output
 			var got, want plan
 
-			gotString := output.Stdout()
+			gotString := showOutput.Stdout()
 			json.Unmarshal([]byte(gotString), &got)
 
 			wantFile, err := os.Open("output.json")
@@ -452,43 +461,48 @@ func TestShow_json_output_sensitive(t *testing.T) {
 	defer close()
 
 	p := showFixtureSensitiveProvider()
-	ui := new(cli.MockUi)
-	view, _ := testView(t)
-	m := Meta{
-		testingOverrides: metaOverridesForProvider(p),
-		Ui:               ui,
-		View:             view,
-		ProviderSource:   providerSource,
-	}
 
 	// init
+	ui := new(cli.MockUi)
 	ic := &InitCommand{
-		Meta: m,
+		Meta: Meta{
+			testingOverrides: metaOverridesForProvider(p),
+			Ui:               ui,
+			ProviderSource:   providerSource,
+		},
 	}
 	if code := ic.Run([]string{}); code != 0 {
 		t.Fatalf("init failed\n%s", ui.ErrorWriter)
 	}
 
-	// flush init output
-	ui.OutputWriter.Reset()
-
+	// plan
+	planView, planDone := testView(t)
 	pc := &PlanCommand{
-		Meta: m,
+		Meta: Meta{
+			testingOverrides: metaOverridesForProvider(p),
+			View:             planView,
+			ProviderSource:   providerSource,
+		},
 	}
 
 	args := []string{
 		"-out=terraform.plan",
 	}
+	code := pc.Run(args)
+	planOutput := planDone(t)
 
-	if code := pc.Run(args); code != 0 {
-		fmt.Println(ui.OutputWriter.String())
-		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
+	if code != 0 {
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, planOutput.Stderr())
 	}
 
-	// flush the plan output from the mock ui
-	ui.OutputWriter.Reset()
+	// show
+	showView, showDone := testView(t)
 	sc := &ShowCommand{
-		Meta: m,
+		Meta: Meta{
+			testingOverrides: metaOverridesForProvider(p),
+			View:             showView,
+			ProviderSource:   providerSource,
+		},
 	}
 
 	args = []string{
@@ -496,15 +510,17 @@ func TestShow_json_output_sensitive(t *testing.T) {
 		"terraform.plan",
 	}
 	defer os.Remove("terraform.plan")
+	code = sc.Run(args)
+	showOutput := showDone(t)
 
-	if code := sc.Run(args); code != 0 {
-		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
+	if code != 0 {
+		t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, showOutput.Stderr())
 	}
 
 	// compare ui output to wanted output
 	var got, want plan
 
-	gotString := ui.OutputWriter.String()
+	gotString := showOutput.Stdout()
 	json.Unmarshal([]byte(gotString), &got)
 
 	wantFile, err := os.Open("output.json")
@@ -549,31 +565,35 @@ func TestShow_json_output_state(t *testing.T) {
 			defer close()
 
 			p := showFixtureProvider()
-			ui := new(cli.MockUi)
-			view, _ := testView(t)
-			m := Meta{
-				testingOverrides: metaOverridesForProvider(p),
-				Ui:               ui,
-				View:             view,
-				ProviderSource:   providerSource,
-			}
 
 			// init
+			ui := new(cli.MockUi)
 			ic := &InitCommand{
-				Meta: m,
+				Meta: Meta{
+					testingOverrides: metaOverridesForProvider(p),
+					Ui:               ui,
+					ProviderSource:   providerSource,
+				},
 			}
 			if code := ic.Run([]string{}); code != 0 {
 				t.Fatalf("init failed\n%s", ui.ErrorWriter)
 			}
 
-			// flush the plan output from the mock ui
-			ui.OutputWriter.Reset()
+			// show
+			showView, showDone := testView(t)
 			sc := &ShowCommand{
-				Meta: m,
+				Meta: Meta{
+					testingOverrides: metaOverridesForProvider(p),
+					View:             showView,
+					ProviderSource:   providerSource,
+				},
 			}
 
-			if code := sc.Run([]string{"-json"}); code != 0 {
-				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, ui.ErrorWriter.String())
+			code := sc.Run([]string{"-json"})
+			showOutput := showDone(t)
+
+			if code != 0 {
+				t.Fatalf("unexpected exit status %d; want 0\ngot: %s", code, showOutput.Stderr())
 			}
 
 			// compare ui output to wanted output
@@ -585,7 +605,7 @@ func TestShow_json_output_state(t *testing.T) {
 			}
 			var got, want state
 
-			gotString := ui.OutputWriter.String()
+			gotString := showOutput.Stdout()
 			json.Unmarshal([]byte(gotString), &got)
 
 			wantFile, err := os.Open("output.json")
